@@ -1,5 +1,8 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
+from asgiref.sync import sync_to_async
+from .agent import app
+from langchain_core.messages import HumanMessage
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -11,7 +14,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         text_data_json = json.loads(text_data)
         message = text_data_json['message']
-        response_message = f"Я почув тебе. Ти сказав: '{message}'"
+
+        def invoke_agent():
+            inputs = {"messages": [HumanMessage(content=message)]}
+            result = app.invoke(inputs)
+            return result["messages"][-1].content
+        
+        try:
+            response_message = await sync_to_async(invoke_agent)()
+        except Exception as e:
+            response_message = f"Error(check API key): {str(e)}"
 
         await self.send(text_data=json.dumps({
             'message': response_message
