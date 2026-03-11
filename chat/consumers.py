@@ -17,7 +17,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         def invoke_agent():
             inputs = {"messages": [HumanMessage(content=message)]}
-            result = app.invoke(inputs)
+            config = {"configurable": {"thread_id": "1"}}
+            result = app.invoke(inputs, config=config)
             return result["messages"][-1].content
         
         try:

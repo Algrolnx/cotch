@@ -1,8 +1,10 @@
 import os
+import sqlite3
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.sqlite import SqliteSaver
 from typing import TypedDict, Annotated
 import operator
 
@@ -34,5 +36,7 @@ workflow.add_node('chatbot', chatbot_node)
 workflow.set_entry_point('chatbot')
 workflow.add_edge('chatbot', END)
 
-app = workflow.compile()
+conn = sqlite3.connect('db.sqlite3', check_same_thread=False)
+memory = SqliteSaver(conn)
+app = workflow.compile(checkpointer=memory)
 
