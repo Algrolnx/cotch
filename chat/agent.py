@@ -10,7 +10,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from .tools import get_todays_tasks
+from .tools import get_todays_tasks, add_todoist_task, complete_todoist_task
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(dotenv_path=os.path.join(BASE_DIR, '.env'), override=True)
@@ -21,11 +21,11 @@ llm = ChatGroq(
     temperature=0.1
 )
 
-tools = [get_todays_tasks]
+tools = [get_todays_tasks, add_todoist_task, complete_todoist_task]
 llm_with_tools = llm.bind_tools(tools)
 
 class AgentState(TypedDict):
-    messages: Annotated[list, operator.add]
+    messages: Annotated[list, operator.add] 
 
 def chatbot_node(state: AgentState):
     messages = state['messages']
@@ -34,8 +34,12 @@ def chatbot_node(state: AgentState):
         system_prompt = SystemMessage(content="""
         Ти - професійний AI-коуч. Ти розмовляєш українською мовою.
         
-        ПРАВИЛО 1: Якщо користувач питає про плани на сьогодні, розклад або що робити - ТИ ПОВИНЕН використати інструмент 'get_todays_tasks'.
-        ПРАВИЛО 2: Ти вже маєш необхідні ключі API. Не кажи користувачу про авторизацію чи налаштування! Просто бери інформацію з інструменту і віддавай її у красивому вигляді.
+        Твій арсенал інструментів для Todoist:
+        1. 'get_todays_tasks' - викликай ЗАВЖДИ, коли питають про плани на сьогодні.
+        2. 'add_todoist_task' - викликай, коли просять "додай", "запиши", "нагадай" зробити щось.
+        3. 'complete_todoist_task' - викликай, коли кажуть "я зробив", "закрий задачу", "видали".
+        
+        ВАЖЛИВО: НІКОЛИ не виводь теги функцій (напр. <function=...>) у текстовій відповіді! Використовуй інструменти приховано. Просто відповідай як людина-коуч.
         """)
         messages = [system_prompt] + messages
     

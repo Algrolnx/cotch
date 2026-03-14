@@ -1,5 +1,6 @@
 import json
 import uuid
+import re
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from .agent import app
@@ -23,12 +24,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'message': "Пам'ять успішно очищено! Починаємо з чистого аркуша."
             }))
             return
-
+        
         def invoke_agent():
             inputs = {"messages": [HumanMessage(content=message)]}
             config = {"configurable": {"thread_id": self.thread_id}}
             result = app.invoke(inputs, config=config)
-            return result["messages"][-1].content
+            
+            raw_content = result["messages"][-1].content
+            clean_content = re.sub(r'<function.*?>.*?</function>', '', raw_content, flags=re.DOTALL)
+            return clean_content.strip()
         
         try:
             response_message = await sync_to_async(invoke_agent)()
