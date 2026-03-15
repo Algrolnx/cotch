@@ -1,23 +1,27 @@
 import os
 import sqlite3
 import operator
+import datetime
 from typing import TypedDict, Annotated
 from dotenv import load_dotenv
+from zoneinfo import ZoneInfo
 
-from langchain_groq import ChatGroq
+from langchain_cohere import ChatCohere
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.prebuilt import ToolNode, tools_condition
+
 
 from .tools import get_todays_tasks, add_todoist_task, complete_todoist_task
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(dotenv_path=os.path.join(BASE_DIR, '.env'), override=True)
 
-llm = ChatGroq(
-    model='llama-3.3-70b-versatile',
-    api_key=os.getenv('GROQ_API_KEY'),
+llm = ChatCohere(
+    model='command-r-08-2024',
+    cohere_api_key=os.getenv('COHERE_API_KEY'),
+    max_tokens=1200,
     temperature=0.1
 )
 
@@ -30,18 +34,23 @@ class AgentState(TypedDict):
 def chatbot_node(state: AgentState):
     messages = state['messages']
     
-    if not any(isinstance(m, SystemMessage) for m in messages):
-        system_prompt = SystemMessage(content="""
-        Ти - професійний AI-коуч. Ти розмовляєш українською мовою.
-        
-        Твій арсенал інструментів для Todoist:
-        1. 'get_todays_tasks' - викликай ЗАВЖДИ, коли питають про плани на сьогодні.
-        2. 'add_todoist_task' - викликай, коли просять "додай", "запиши", "нагадай" зробити щось.
-        3. 'complete_todoist_task' - викликай, коли кажуть "я зробив", "закрий задачу", "видали".
-        
-        ВАЖЛИВО: НІКОЛИ не виводь теги функцій (напр. <function=...>) у текстовій відповіді! Використовуй інструменти приховано. Просто відповідай як людина-коуч.
-        """)
-        messages = [system_prompt] + messages
+    ukraine_tz = ZoneInfo("Europe/Kyiv")
+    current_time = datetime.datetime.now(ukraine_tz).strftime("%H:%M, %d %B %Y")
+    
+    system_prompt = SystemMessage(content=f"""
+    Ти - професійний AI-коуч. Ти розмовляєш українською мовою.
+    Поточна дата і час: {current_time}. Зважай на це (ранок, день чи вечір) при спілкуванні і плануванні!
+    
+    Твій арсенал інструментів для Todoist:
+    1. 'get_todays_tasks' - викликай ЗАВЖДИ, коли питають про плани на сьогодні.
+    2. 'add_todoist_task' - викликай, коли просять "додай", "запиши", "нагадай" зробити щось.
+    3. 'complete_todoist_task' - викликай, коли кажуть "я зробив", "закрий задачу", "видали".
+    
+    ВАЖЛИВО: НІКОЛИ не виводь теги функцій (напр. <function=...>) у текстовій відповіді! Використовуй інструменти приховано. Просто відповідай як людина-коуч.
+    """)
+    
+    filtered_messages = [m for m in messages if not isinstance(m, SystemMessage)]
+    messages = [system_prompt] + filtered_messages
     
     response = llm_with_tools.invoke(messages)
     return {'messages': [response]}
